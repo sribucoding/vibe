@@ -12,7 +12,7 @@ import (
 )
 
 func TestRecoveryMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+	handler := func(_ http.ResponseWriter, _ *http.Request) error {
 		panic("test panic")
 	}
 
@@ -30,7 +30,7 @@ func TestRecoveryMiddleware(t *testing.T) {
 }
 
 func TestTimeoutMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+	handler := func(w http.ResponseWriter, _ *http.Request) error {
 		time.Sleep(100 * time.Millisecond)
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
@@ -52,7 +52,7 @@ func TestTimeoutMiddleware(t *testing.T) {
 }
 
 func TestCORSMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+	handler := func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
 
@@ -113,7 +113,7 @@ func TestCORSMiddleware(t *testing.T) {
 }
 
 func TestLoggerMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+	handler := func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
 
@@ -134,7 +134,7 @@ func TestLoggerMiddleware(t *testing.T) {
 	}
 
 	// Test with error from handler
-	errorHandler := func(w http.ResponseWriter, r *http.Request) error {
+	errorHandler := func(_ http.ResponseWriter, _ *http.Request) error {
 		return errors.New("test error")
 	}
 
@@ -150,7 +150,7 @@ func TestLoggerMiddleware(t *testing.T) {
 }
 
 func TestCORSAllOptions(t *testing.T) {
-	handler := func(w http.ResponseWriter, r *http.Request) error {
+	handler := func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
 

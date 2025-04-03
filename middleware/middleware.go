@@ -11,7 +11,7 @@ import (
 	"github.com/vibe-go/vibe/respond"
 )
 
-// DefaultMaxAge is the default max age for CORS preflight requests (24 hours)
+// DefaultMaxAge is the default max age for CORS preflight requests (24 hours).
 const DefaultMaxAge = 86400
 
 // Update HandlerFunc definition.

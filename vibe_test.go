@@ -16,7 +16,7 @@ func TestRouterBasicRouting(t *testing.T) {
 	router := vibe.New()
 
 	// Register a simple route
-	router.Get("/hello", func(w http.ResponseWriter, r *http.Request) error {
+	router.Get("/hello", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "Hello, World!"})
 	})
 
@@ -45,7 +45,7 @@ func TestRouterMethodNotAllowed(t *testing.T) {
 	router := vibe.New()
 
 	// Register a POST route
-	router.Post("/api", func(w http.ResponseWriter, r *http.Request) error {
+	router.Post("/api", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	})
 
@@ -76,7 +76,7 @@ func TestRouterWithMiddleware(t *testing.T) {
 	router.Use(testMiddleware)
 
 	// Register a route
-	router.Get("/test", func(w http.ResponseWriter, r *http.Request) error {
+	router.Get("/test", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	})
 
@@ -101,13 +101,13 @@ func TestRouterGroups(t *testing.T) {
 	api := router.Group("/api")
 
 	// Add a route to the group
-	api.Get("/users", func(w http.ResponseWriter, r *http.Request) error {
+	api.Get("/users", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "users"})
 	})
 
 	// Create a nested group
 	v1 := api.Group("/v1")
-	v1.Get("/products", func(w http.ResponseWriter, r *http.Request) error {
+	v1.Get("/products", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "products"})
 	})
 
@@ -139,7 +139,7 @@ func TestRouterOptions(t *testing.T) {
 
 		api := router.Group("/api")
 
-		api.Get("/users", func(w http.ResponseWriter, r *http.Request) error {
+		api.Get("/users", func(w http.ResponseWriter, _ *http.Request) error {
 			return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 		})
 
@@ -169,7 +169,7 @@ func TestRouterOptions(t *testing.T) {
 		router := vibe.New(vibe.WithoutRecovery())
 
 		// Register a route that will panic
-		router.Get("/panic", func(w http.ResponseWriter, r *http.Request) error {
+		router.Get("/panic", func(_ http.ResponseWriter, _ *http.Request) error {
 			panic("test panic")
 		})
 
@@ -264,7 +264,7 @@ func TestGroupMiddleware(t *testing.T) {
 	api := router.Group("/api", headerMiddleware)
 
 	// Add a route to the group
-	api.Get("/test", func(w http.ResponseWriter, r *http.Request) error {
+	api.Get("/test", func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	})
 
@@ -282,7 +282,7 @@ func TestGroupMiddleware(t *testing.T) {
 func TestNotFoundHandler(t *testing.T) {
 	router := vibe.New()
 
-	router.NotFound(func(w http.ResponseWriter, r *http.Request) error {
+	router.NotFound(func(w http.ResponseWriter, _ *http.Request) error {
 		return respond.JSON(w, http.StatusNotFound, map[string]string{"error": "Custom not found"})
 	})
 

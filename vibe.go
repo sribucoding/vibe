@@ -213,56 +213,49 @@ func (g *Group) Use(mw middleware.Middleware) *Group {
 // The pattern is relative to the group's prefix.
 func (g *Group) Get(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	g.middleware = append(g.middleware, mws...)
-	g.router.Get(fullPath, handler, g.middleware...)
+	g.router.Get(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Post registers a POST route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Post(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Post(fullPath, handler, allMiddleware...)
+	g.router.Post(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Put registers a PUT route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Put(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Put(fullPath, handler, allMiddleware...)
+	g.router.Put(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Delete registers a DELETE route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Delete(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Delete(fullPath, handler, allMiddleware...)
+	g.router.Delete(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Patch registers a PATCH route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Patch(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Patch(fullPath, handler, allMiddleware...)
+	g.router.Patch(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Options registers an OPTIONS route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Options(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Options(fullPath, handler, allMiddleware...)
+	g.router.Options(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Head registers a HEAD route in the group.
 // The pattern is relative to the group's prefix.
 func (g *Group) Head(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Head(fullPath, handler, allMiddleware...)
+	g.router.Head(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Group creates a sub-group with the given prefix.
@@ -276,11 +269,10 @@ func (g *Group) Head(pattern string, handler middleware.HandlerFunc, mws ...midd
 //	admin.Get("/stats", getStats)  // Route: /api/v1/admin/stats
 func (g *Group) Group(prefix string, mws ...middleware.Middleware) *Group {
 	fullPrefix := g.prefix + prefix
-	allMiddleware := append(g.middleware, mws...)
 	return &Group{
 		router:     g.router,
 		prefix:     fullPrefix,
-		middleware: allMiddleware,
+		middleware: append(g.middleware, mws...),
 	}
 }
 
