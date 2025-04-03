@@ -19,7 +19,7 @@ Vibe takes a pragmatic approach by building on Go's battle-tested `net/http` pac
 
 - **No magic**: Clear, predictable behavior that follows Go idioms
 - **Easy to learn**: If you know `net/http`, you'll feel right at home
-- **Excellent performance**: Minimal overhead compared to raw `net/http`
+- **Low overhead**: Minimal performance impact compared to raw `net/http`
 - **Compatibility**: Works with existing `net/http` middleware and handlers
 - **Future-proof**: Benefits from improvements to the standard library
 
