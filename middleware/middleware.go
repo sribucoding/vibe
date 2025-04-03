@@ -14,7 +14,8 @@ import (
 // DefaultMaxAge is the default max age for CORS preflight requests (24 hours).
 const DefaultMaxAge = 86400
 
-// Update HandlerFunc definition.
+// HandlerFunc defines a function that processes an HTTP request and returns an error.
+// It's used throughout the framework for route handlers and middleware.
 type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
 
 // WithTimeout returns a middleware that times out the request after the given duration.

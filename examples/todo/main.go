@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"time"
 
 	"github.com/vibe-go/vibe"
 	"github.com/vibe-go/vibe/httpjson"
@@ -43,7 +44,7 @@ func NewTodoStore() *TodoStore {
 	return store
 }
 
-// GetAll returns all todos
+// GetAll returns all todos.
 func (s *TodoStore) GetAll() []Todo {
 	s.RLock()
 	defer s.RUnlock()
@@ -55,7 +56,7 @@ func (s *TodoStore) GetAll() []Todo {
 	return todos
 }
 
-// Get returns a todo by ID
+// Get returns a todo by ID.
 func (s *TodoStore) Get(id int) (Todo, bool) {
 	s.RLock()
 	defer s.RUnlock()
@@ -64,7 +65,7 @@ func (s *TodoStore) Get(id int) (Todo, bool) {
 	return todo, ok
 }
 
-// Create adds a new todo
+// Create adds a new todo.
 func (s *TodoStore) Create(todo Todo) Todo {
 	s.Lock()
 	defer s.Unlock()
@@ -75,7 +76,7 @@ func (s *TodoStore) Create(todo Todo) Todo {
 	return todo
 }
 
-// Update updates an existing todo
+// Update updates an existing todo.
 func (s *TodoStore) Update(id int, todo Todo) (Todo, bool) {
 	s.Lock()
 	defer s.Unlock()
@@ -89,7 +90,7 @@ func (s *TodoStore) Update(id int, todo Todo) (Todo, bool) {
 	return todo, true
 }
 
-// Delete removes a todo
+// Delete removes a todo.
 func (s *TodoStore) Delete(id int) bool {
 	s.Lock()
 	defer s.Unlock()
@@ -118,7 +119,7 @@ func main() {
 	todoGroup := router.Group("/todos")
 
 	// Define routes using the group
-	todoGroup.Get("", func(w http.ResponseWriter, r *http.Request) error {
+	todoGroup.Get("", func(w http.ResponseWriter, _ *http.Request) error {
 		todos := store.GetAll()
 		return respond.JSON(w, http.StatusOK, todos)
 	})
@@ -127,7 +128,7 @@ func main() {
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			return fmt.Errorf("invalid ID: %v", err)
+			return fmt.Errorf("invalid ID: %w", err)
 		}
 
 		todo, ok := store.Get(id)
@@ -154,11 +155,11 @@ func main() {
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			return fmt.Errorf("invalid ID: %v", err)
+			return fmt.Errorf("invalid ID: %w", err)
 		}
 
 		var todo Todo
-		if err := httpjson.Decode(r, &todo); err != nil {
+		if decodeErr := httpjson.Decode(r, &todo); decodeErr != nil {
 			return err
 		}
 
@@ -176,7 +177,7 @@ func main() {
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
-			return fmt.Errorf("invalid ID: %v", err)
+			return fmt.Errorf("invalid ID: %w", err)
 		}
 
 		ok := store.Delete(id)
@@ -192,7 +193,14 @@ func main() {
 	// Start the server
 	port := "8080"
 	logger.Printf("Server starting on port %s...", port)
-	if err := http.ListenAndServe(":"+port, router); err != nil {
+	server := &http.Server{
+		Addr:         ":" + port,
+		Handler:      router,
+		ReadTimeout:  15 * time.Second,
+		WriteTimeout: 15 * time.Second,
+		IdleTimeout:  60 * time.Second,
+	}
+	if err := server.ListenAndServe(); err != nil {
 		logger.Fatalf("Server failed to start: %v", err)
 	}
 }
