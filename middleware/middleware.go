@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sribucoding/vibe/respond"
+	"github.com/vibe-go/vibe/respond"
 )
 
 // HandlerFunc defines the signature for route handlers.

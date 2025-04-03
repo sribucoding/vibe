@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/sribucoding/vibe/middleware"
-	"github.com/sribucoding/vibe/respond"
+	"github.com/vibe-go/vibe/middleware"
+	"github.com/vibe-go/vibe/respond"
 )
 
 func TestRouterBasicRouting(t *testing.T) {

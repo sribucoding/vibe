@@ -26,7 +26,7 @@ Vibe takes a pragmatic approach by building on Go's battle-tested `net/http` pac
 ## Installation
 
 ```bash
-go get github.com/sribucoding/vibe
+go get github.com/vibe-go/vibe
 ```
 
 ## Quick Start
@@ -36,8 +36,8 @@ package main
 
 import (
     "net/http"
-    "github.com/sribucoding/vibe"
-    "github.com/sribucoding/vibe/respond"
+    "github.com/vibe-go/vibe"
+    "github.com/vibe-go/vibe/respond"
 )
 
 func main() {

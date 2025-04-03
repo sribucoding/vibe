@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/sribucoding/vibe/respond"
+	"github.com/vibe-go/vibe/respond"
 )
 
 func TestRecoveryMiddleware(t *testing.T) {

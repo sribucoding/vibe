@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"sync"
 
-	"github.com/sribucoding/vibe"
-	"github.com/sribucoding/vibe/httpjson"
-	"github.com/sribucoding/vibe/middleware"
-	"github.com/sribucoding/vibe/respond"
+	"github.com/vibe-go/vibe"
+	"github.com/vibe-go/vibe/httpjson"
+	"github.com/vibe-go/vibe/middleware"
+	"github.com/vibe-go/vibe/respond"
 )
 
 // Todo represents a todo item

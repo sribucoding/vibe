@@ -23,8 +23,8 @@
 //
 //	import (
 //	    "net/http"
-//	    "github.com/sribucoding/vibe"
-//	    "github.com/sribucoding/vibe/respond"
+//	    "github.com/vibe-go/vibe"
+//	    "github.com/vibe-go/vibe/respond"
 //	)
 //
 //	func main() {
@@ -46,7 +46,7 @@ import (
 	"net/http"
 	"os"
 
-	"github.com/sribucoding/vibe/middleware"
+	"github.com/vibe-go/vibe/middleware"
 )
 
 // HandlerFunc defines the signature for route handlers.
