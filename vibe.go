@@ -1,9 +1,21 @@
 // Package vibe provides a lightweight, flexible web framework for building
 // modern web applications and APIs in Go with minimal boilerplate.
 //
+// Built on top of Go's standard net/http library, Vibe provides a thin layer
+// of convenience without sacrificing performance or compatibility.
+//
 // Vibe focuses on simplicity and expressiveness, offering features like
 // middleware support, flexible routing, and built-in utilities for common web
 // development tasks.
+//
+// Key features:
+//   - Built on standard library for maximum compatibility and performance
+//   - Simple and intuitive API with minimal boilerplate
+//   - Middleware support for cross-cutting concerns
+//   - Flexible routing with HTTP method-based handlers
+//   - JSON utilities for request/response handling
+//   - Route groups for organizing endpoints
+//   - CORS support via middleware
 //
 // Basic usage example:
 //
