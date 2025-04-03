@@ -2,6 +2,7 @@ package httpjson
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 )
@@ -9,12 +10,12 @@ import (
 // Decode decodes the JSON request body into the provided value.
 func Decode(r *http.Request, v interface{}) error {
 	if r.Body == nil {
-		return fmt.Errorf("request body is empty")
+		return errors.New("request body is empty")
 	}
 	defer r.Body.Close()
 
 	if err := json.NewDecoder(r.Body).Decode(v); err != nil {
-		return fmt.Errorf("failed to decode JSON: %v", err)
+		return fmt.Errorf("failed to decode JSON: %w", err)
 	}
 
 	return nil

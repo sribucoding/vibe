@@ -1,12 +1,13 @@
-package middleware
+package middleware_test
 
 import (
-	"fmt"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 	"time"
 
+	"github.com/vibe-go/vibe/middleware"
 	"github.com/vibe-go/vibe/respond"
 )
 
@@ -15,9 +16,9 @@ func TestRecoveryMiddleware(t *testing.T) {
 		panic("test panic")
 	}
 
-	wrapped := Recovery(nil)(handler)
+	wrapped := middleware.Recovery(nil)(handler)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
 	_ = wrapped(w, req)
@@ -34,9 +35,9 @@ func TestTimeoutMiddleware(t *testing.T) {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
 
-	wrapped := WithTimeout(50 * time.Millisecond)(handler)
+	wrapped := middleware.WithTimeout(50 * time.Millisecond)(handler)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
 	// Execute the handler
@@ -56,9 +57,9 @@ func TestCORSMiddleware(t *testing.T) {
 	}
 
 	t.Run("DefaultOptions", func(t *testing.T) {
-		wrapped := CORS()(handler)
+		wrapped := middleware.CORS()(handler)
 
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
 		_ = wrapped(w, req)
@@ -72,12 +73,12 @@ func TestCORSMiddleware(t *testing.T) {
 
 	// Test with custom options
 	t.Run("CustomOptions", func(t *testing.T) {
-		wrapped := CORS(
-			WithAllowOrigin("https://example.com"),
-			WithAllowCredentials(true),
+		wrapped := middleware.CORS(
+			middleware.WithAllowOrigin("https://example.com"),
+			middleware.WithAllowCredentials(true),
 		)(handler)
 
-		req := httptest.NewRequest("GET", "/", nil)
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
 		_ = wrapped(w, req)
@@ -96,9 +97,9 @@ func TestCORSMiddleware(t *testing.T) {
 
 	// Test OPTIONS request
 	t.Run("OptionsRequest", func(t *testing.T) {
-		wrapped := CORS()(handler)
+		wrapped := middleware.CORS()(handler)
 
-		req := httptest.NewRequest("OPTIONS", "/", nil)
+		req := httptest.NewRequest(http.MethodOptions, "/", nil)
 		w := httptest.NewRecorder()
 
 		_ = wrapped(w, req)
@@ -111,17 +112,15 @@ func TestCORSMiddleware(t *testing.T) {
 	})
 }
 
-// Add these test functions to your existing middleware_test.go file
-
 func TestLoggerMiddleware(t *testing.T) {
 	handler := func(w http.ResponseWriter, r *http.Request) error {
 		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
 	}
 
 	// Test with nil logger (should use default)
-	wrapped := Logger(nil)(handler)
+	wrapped := middleware.Logger(nil)(handler)
 
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	err := wrapped(w, req)
@@ -136,12 +135,12 @@ func TestLoggerMiddleware(t *testing.T) {
 
 	// Test with error from handler
 	errorHandler := func(w http.ResponseWriter, r *http.Request) error {
-		return fmt.Errorf("test error")
+		return errors.New("test error")
 	}
 
-	wrapped = Logger(nil)(errorHandler)
+	wrapped = middleware.Logger(nil)(errorHandler)
 
-	req = httptest.NewRequest("GET", "/test", nil)
+	req = httptest.NewRequest(http.MethodGet, "/test", nil)
 	w = httptest.NewRecorder()
 
 	err = wrapped(w, req)
@@ -156,15 +155,15 @@ func TestCORSAllOptions(t *testing.T) {
 	}
 
 	// Test all CORS options
-	wrapped := CORS(
-		WithAllowOrigin("https://example.com"),
-		WithAllowMethods("GET, POST"),
-		WithAllowHeaders("X-Custom-Header"),
-		WithAllowCredentials(true),
-		WithMaxAge(3600),
+	wrapped := middleware.CORS(
+		middleware.WithAllowOrigin("https://example.com"),
+		middleware.WithAllowMethods("GET, POST"),
+		middleware.WithAllowHeaders("X-Custom-Header"),
+		middleware.WithAllowCredentials(true),
+		middleware.WithMaxAge(3600),
 	)(handler)
 
-	req := httptest.NewRequest("GET", "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
 
 	_ = wrapped(w, req)

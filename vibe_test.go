@@ -1,4 +1,4 @@
-package vibe
+package vibe_test
 
 import (
 	"io"
@@ -7,12 +7,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vibe-go/vibe"
 	"github.com/vibe-go/vibe/middleware"
 	"github.com/vibe-go/vibe/respond"
 )
 
 func TestRouterBasicRouting(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	// Register a simple route
 	router.Get("/hello", func(w http.ResponseWriter, r *http.Request) error {
@@ -20,7 +21,7 @@ func TestRouterBasicRouting(t *testing.T) {
 	})
 
 	// Create a test request
-	req := httptest.NewRequest("GET", "/hello", nil)
+	req := httptest.NewRequest(http.MethodGet, "/hello", nil)
 	w := httptest.NewRecorder()
 
 	// Serve the request
@@ -41,7 +42,7 @@ func TestRouterBasicRouting(t *testing.T) {
 }
 
 func TestRouterMethodNotAllowed(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	// Register a POST route
 	router.Post("/api", func(w http.ResponseWriter, r *http.Request) error {
@@ -49,7 +50,7 @@ func TestRouterMethodNotAllowed(t *testing.T) {
 	})
 
 	// Try to access with GET
-	req := httptest.NewRequest("GET", "/api", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
@@ -62,7 +63,7 @@ func TestRouterMethodNotAllowed(t *testing.T) {
 }
 
 func TestRouterWithMiddleware(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	// Add a test middleware that adds a header
 	testMiddleware := func(next middleware.HandlerFunc) middleware.HandlerFunc {
@@ -80,7 +81,7 @@ func TestRouterWithMiddleware(t *testing.T) {
 	})
 
 	// Create a test request
-	req := httptest.NewRequest("GET", "/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/test", nil)
 	w := httptest.NewRecorder()
 
 	// Serve the request
@@ -94,7 +95,7 @@ func TestRouterWithMiddleware(t *testing.T) {
 }
 
 func TestRouterGroups(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	// Create a group
 	api := router.Group("/api")
@@ -111,7 +112,7 @@ func TestRouterGroups(t *testing.T) {
 	})
 
 	// Test the first group route
-	req1 := httptest.NewRequest("GET", "/api/users", nil)
+	req1 := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 
@@ -121,7 +122,7 @@ func TestRouterGroups(t *testing.T) {
 	}
 
 	// Test the nested group route
-	req2 := httptest.NewRequest("GET", "/api/v1/products", nil)
+	req2 := httptest.NewRequest(http.MethodGet, "/api/v1/products", nil)
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
 
@@ -131,12 +132,10 @@ func TestRouterGroups(t *testing.T) {
 	}
 }
 
-// Add these test functions to your existing vibe_test.go file
-
 func TestRouterOptions(t *testing.T) {
 	// Test WithPrefix option
 	t.Run("WithPrefix", func(t *testing.T) {
-		router := New()
+		router := vibe.New()
 
 		api := router.Group("/api")
 
@@ -145,7 +144,7 @@ func TestRouterOptions(t *testing.T) {
 		})
 
 		// Should match /api/users
-		req := httptest.NewRequest("GET", "/api/users", nil)
+		req := httptest.NewRequest(http.MethodGet, "/api/users", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -155,7 +154,7 @@ func TestRouterOptions(t *testing.T) {
 		}
 
 		// Should not match /users
-		req = httptest.NewRequest("GET", "/users", nil)
+		req = httptest.NewRequest(http.MethodGet, "/users", nil)
 		w = httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 
@@ -167,7 +166,7 @@ func TestRouterOptions(t *testing.T) {
 
 	// Test WithoutRecovery option
 	t.Run("WithoutRecovery", func(t *testing.T) {
-		router := New(WithoutRecovery())
+		router := vibe.New(vibe.WithoutRecovery())
 
 		// Register a route that will panic
 		router.Get("/panic", func(w http.ResponseWriter, r *http.Request) error {
@@ -181,7 +180,7 @@ func TestRouterOptions(t *testing.T) {
 			}
 		}()
 
-		req := httptest.NewRequest("GET", "/panic", nil)
+		req := httptest.NewRequest(http.MethodGet, "/panic", nil)
 		w := httptest.NewRecorder()
 		router.ServeHTTP(w, req)
 	})
@@ -190,40 +189,40 @@ func TestRouterOptions(t *testing.T) {
 func TestAllHTTPMethods(t *testing.T) {
 	methods := []struct {
 		method     string
-		routerFunc func(string, middleware.HandlerFunc, ...middleware.Middleware) *Router
+		routerFunc func(string, middleware.HandlerFunc, ...middleware.Middleware) *vibe.Router
 	}{
-		{"GET", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{http.MethodGet, func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Get(p, h, m...)
 			return r
 		}},
-		{"POST", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"POST", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Post(p, h, m...)
 			return r
 		}},
-		{"PUT", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"PUT", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Put(p, h, m...)
 			return r
 		}},
-		{"DELETE", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"DELETE", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Delete(p, h, m...)
 			return r
 		}},
-		{"PATCH", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"PATCH", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Patch(p, h, m...)
 			return r
 		}},
-		{"OPTIONS", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"OPTIONS", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Options(p, h, m...)
 			return r
 		}},
-		{"HEAD", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *Router {
-			r := New()
+		{"HEAD", func(p string, h middleware.HandlerFunc, m ...middleware.Middleware) *vibe.Router {
+			r := vibe.New()
 			r.Head(p, h, m...)
 			return r
 		}},
@@ -251,7 +250,7 @@ func TestAllHTTPMethods(t *testing.T) {
 }
 
 func TestGroupMiddleware(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	// Create middleware that adds a header
 	headerMiddleware := func(next middleware.HandlerFunc) middleware.HandlerFunc {
@@ -270,7 +269,7 @@ func TestGroupMiddleware(t *testing.T) {
 	})
 
 	// Test the route
-	req := httptest.NewRequest("GET", "/api/test", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/test", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -281,13 +280,13 @@ func TestGroupMiddleware(t *testing.T) {
 }
 
 func TestNotFoundHandler(t *testing.T) {
-	router := New()
+	router := vibe.New()
 
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) error {
 		return respond.JSON(w, http.StatusNotFound, map[string]string{"error": "Custom not found"})
 	})
 
-	req := httptest.NewRequest("GET", "/non-existent", nil)
+	req := httptest.NewRequest(http.MethodGet, "/non-existent", nil)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 

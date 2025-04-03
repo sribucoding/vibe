@@ -1,10 +1,13 @@
-package httpjson
+package httpjson_test
 
 import (
 	"bytes"
+	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vibe-go/vibe/httpjson"
 )
 
 type testStruct struct {
@@ -15,11 +18,11 @@ type testStruct struct {
 func TestDecode(t *testing.T) {
 	t.Run("ValidJSON", func(t *testing.T) {
 		jsonBody := `{"name":"test","value":123}`
-		req := httptest.NewRequest("POST", "/", bytes.NewBufferString(jsonBody))
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		err := Decode(req, &result)
+		err := httpjson.Decode(req, &result)
 
 		if err != nil {
 			t.Errorf("Decode() returned error for valid JSON: %v", err)
@@ -32,11 +35,11 @@ func TestDecode(t *testing.T) {
 
 	t.Run("InvalidJSON", func(t *testing.T) {
 		jsonBody := `{"name":"test",value:123}` // Missing quotes around value
-		req := httptest.NewRequest("POST", "/", bytes.NewBufferString(jsonBody))
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(jsonBody))
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		err := Decode(req, &result)
+		err := httpjson.Decode(req, &result)
 
 		if err == nil {
 			t.Error("Decode() didn't return error for invalid JSON")
@@ -44,11 +47,11 @@ func TestDecode(t *testing.T) {
 	})
 
 	t.Run("EmptyBody", func(t *testing.T) {
-		req := httptest.NewRequest("POST", "/", strings.NewReader(""))
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(""))
 		req.Header.Set("Content-Type", "application/json")
 
 		var result testStruct
-		err := Decode(req, &result)
+		err := httpjson.Decode(req, &result)
 
 		if err == nil {
 			t.Error("Decode() didn't return error for empty body")
@@ -57,10 +60,10 @@ func TestDecode(t *testing.T) {
 
 	t.Run("DecodeNilBody", func(t *testing.T) {
 		// Test with nil body
-		req := httptest.NewRequest("POST", "/", nil)
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		req.Header.Set("Content-Type", "application/json")
 		var result testStruct
-		err := Decode(req, &result)
+		err := httpjson.Decode(req, &result)
 		if err == nil {
 			t.Error("Decode() didn't return error for nil body")
 		}

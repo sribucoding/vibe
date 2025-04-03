@@ -5,14 +5,16 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/vibe-go/vibe/respond"
 )
 
-// HandlerFunc defines the signature for route handlers.
-// It should return an error if processing fails.
-// Update HandlerFunc definition
+// DefaultMaxAge is the default max age for CORS preflight requests (24 hours)
+const DefaultMaxAge = 86400
+
+// Update HandlerFunc definition.
 type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
 
 // WithTimeout returns a middleware that times out the request after the given duration.
@@ -67,7 +69,7 @@ func Recovery(logger *log.Logger) Middleware {
 	}
 }
 
-// corsConfig holds the configuration for CORS middleware
+// corsConfig holds the configuration for CORS middleware.
 type corsConfig struct {
 	allowOrigin      string
 	allowMethods     string
@@ -76,38 +78,38 @@ type corsConfig struct {
 	maxAge           int
 }
 
-// CORSOption defines a function that configures CORS options
+// CORSOption defines a function that configures CORS options.
 type CORSOption func(*corsConfig)
 
-// WithAllowOrigin sets the Access-Control-Allow-Origin header
+// WithAllowOrigin sets the Access-Control-Allow-Origin header.
 func WithAllowOrigin(origin string) CORSOption {
 	return func(c *corsConfig) {
 		c.allowOrigin = origin
 	}
 }
 
-// WithAllowMethods sets the Access-Control-Allow-Methods header
+// WithAllowMethods sets the Access-Control-Allow-Methods header.
 func WithAllowMethods(methods string) CORSOption {
 	return func(c *corsConfig) {
 		c.allowMethods = methods
 	}
 }
 
-// WithAllowHeaders sets the Access-Control-Allow-Headers header
+// WithAllowHeaders sets the Access-Control-Allow-Headers header.
 func WithAllowHeaders(headers string) CORSOption {
 	return func(c *corsConfig) {
 		c.allowHeaders = headers
 	}
 }
 
-// WithAllowCredentials sets the Access-Control-Allow-Credentials header
+// WithAllowCredentials sets the Access-Control-Allow-Credentials header.
 func WithAllowCredentials(allow bool) CORSOption {
 	return func(c *corsConfig) {
 		c.allowCredentials = allow
 	}
 }
 
-// WithMaxAge sets the Access-Control-Max-Age header
+// WithMaxAge sets the Access-Control-Max-Age header.
 func WithMaxAge(seconds int) CORSOption {
 	return func(c *corsConfig) {
 		c.maxAge = seconds
@@ -123,7 +125,7 @@ func CORS(options ...CORSOption) Middleware {
 		allowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
 		allowHeaders:     "Content-Type, Authorization",
 		allowCredentials: false,
-		maxAge:           86400, // 24 hours
+		maxAge:           DefaultMaxAge,
 	}
 
 	for _, option := range options {
@@ -141,7 +143,7 @@ func CORS(options ...CORSOption) Middleware {
 			}
 
 			if cfg.maxAge > 0 {
-				w.Header().Set("Access-Control-Max-Age", fmt.Sprintf("%d", cfg.maxAge))
+				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(cfg.maxAge))
 			}
 
 			if r.Method == http.MethodOptions {

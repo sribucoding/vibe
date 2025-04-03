@@ -1,4 +1,4 @@
-package respond
+package respond_test
 
 import (
 	"encoding/json"
@@ -7,13 +7,15 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/vibe-go/vibe/respond"
 )
 
 func TestJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	data := map[string]string{"message": "test"}
 
-	err := JSON(w, http.StatusCreated, data)
+	err := respond.JSON(w, http.StatusCreated, data)
 	if err != nil {
 		t.Errorf("JSON() returned error: %v", err)
 	}
@@ -47,7 +49,7 @@ func TestJSON(t *testing.T) {
 func TestError(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	err := Error(w, http.StatusBadRequest, "Invalid request")
+	err := respond.Error(w, http.StatusBadRequest, "Invalid request")
 	if err != nil {
 		t.Errorf("Error() returned error: %v", err)
 	}
@@ -70,7 +72,7 @@ func TestError(t *testing.T) {
 func TestNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	err := NotFound(w, "Resource not found")
+	err := respond.NotFound(w, "Resource not found")
 	if err != nil {
 		t.Errorf("NotFound() returned error: %v", err)
 	}
@@ -86,7 +88,7 @@ func TestNotFound(t *testing.T) {
 func TestBadRequest(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	err := BadRequest(w, "Invalid input")
+	err := respond.BadRequest(w, "Invalid input")
 	if err != nil {
 		t.Errorf("BadRequest() returned error: %v", err)
 	}
@@ -103,7 +105,7 @@ func TestInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	testErr := io.EOF
 
-	err := InternalError(w, testErr)
+	err := respond.InternalError(w, testErr)
 	if err != nil {
 		t.Errorf("InternalError() returned error: %v", err)
 	}
@@ -121,7 +123,7 @@ func TestInternalError(t *testing.T) {
 func TestNotFoundEmptyMessage(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	err := NotFound(w, "")
+	err := respond.NotFound(w, "")
 	if err != nil {
 		t.Errorf("NotFound() returned error: %v", err)
 	}
@@ -144,7 +146,7 @@ func TestNotFoundEmptyMessage(t *testing.T) {
 func TestWithStatusCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	WithStatusCode(w, http.StatusTeapot)
+	respond.WithStatusCode(w, http.StatusTeapot)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusTeapot {

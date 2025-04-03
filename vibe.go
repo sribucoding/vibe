@@ -213,8 +213,8 @@ func (g *Group) Use(mw middleware.Middleware) *Group {
 // The pattern is relative to the group's prefix.
 func (g *Group) Get(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	fullPath := g.prefix + pattern
-	allMiddleware := append(g.middleware, mws...)
-	g.router.Get(fullPath, handler, allMiddleware...)
+	g.middleware = append(g.middleware, mws...)
+	g.router.Get(fullPath, handler, g.middleware...)
 }
 
 // Post registers a POST route in the group.

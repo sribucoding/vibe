@@ -56,6 +56,9 @@ test-short:
 lint:
 	$(GOLINT) run ./...
 
+lintfix:
+	$(GOLINT) run ./... --fix
+
 # Format code
 fmt:
 	$(GOFMT) ./...
