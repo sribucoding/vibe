@@ -229,6 +229,30 @@ func (g *Group) Delete(pattern string, handler middleware.HandlerFunc, mws ...mi
 	g.router.Delete(fullPath, handler, allMiddleware...)
 }
 
+// Patch registers a PATCH route in the group.
+// The pattern is relative to the group's prefix.
+func (g *Group) Patch(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	fullPath := g.prefix + pattern
+	allMiddleware := append(g.middleware, mws...)
+	g.router.Patch(fullPath, handler, allMiddleware...)
+}
+
+// Options registers an OPTIONS route in the group.
+// The pattern is relative to the group's prefix.
+func (g *Group) Options(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	fullPath := g.prefix + pattern
+	allMiddleware := append(g.middleware, mws...)
+	g.router.Options(fullPath, handler, allMiddleware...)
+}
+
+// Head registers a HEAD route in the group.
+// The pattern is relative to the group's prefix.
+func (g *Group) Head(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	fullPath := g.prefix + pattern
+	allMiddleware := append(g.middleware, mws...)
+	g.router.Head(fullPath, handler, allMiddleware...)
+}
+
 // Group creates a sub-group with the given prefix.
 // The prefix is relative to the parent group's prefix.
 // This allows for nested route organization.
@@ -252,4 +276,49 @@ func (g *Group) Group(prefix string, mws ...middleware.Middleware) *Group {
 // The pattern supports path parameters in the format "/{param}".
 func (r *Router) Delete(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
 	r.registerRoute(http.MethodDelete, pattern, handler, mws...)
+}
+
+// Patch registers a PATCH route.
+// The pattern supports path parameters in the format "/{param}".
+func (r *Router) Patch(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	r.registerRoute(http.MethodPatch, pattern, handler, mws...)
+}
+
+// Options registers an OPTIONS route.
+// The pattern supports path parameters in the format "/{param}".
+func (r *Router) Options(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	r.registerRoute(http.MethodOptions, pattern, handler, mws...)
+}
+
+// Head registers a HEAD route.
+// The pattern supports path parameters in the format "/{param}".
+func (r *Router) Head(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+	r.registerRoute(http.MethodHead, pattern, handler, mws...)
+}
+
+// NotFound sets a custom handler for 404 Not Found responses.
+// This allows customizing the behavior when no route matches the request.
+//
+// Example:
+//
+//	router.NotFound(func(w http.ResponseWriter, r *http.Request) error {
+//	    return respond.JSON(w, http.StatusNotFound, map[string]string{
+//	        "error": "Resource not found",
+//	        "path": r.URL.Path,
+//	    })
+//	})
+func (r *Router) NotFound(handler middleware.HandlerFunc) {
+	// Chain the handler with global middlewares
+	chainedHandler := chainMiddleware(handler, r.middlewares...)
+
+	// Override the default NotFound handler
+	r.mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
+		// Only handle actual 404s, not other routes
+		if req.URL.Path != "/" {
+			if err := chainedHandler(w, req); err != nil {
+				r.logger.Printf("Error handling NotFound for %s: %v", req.URL.Path, err)
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+			}
+		}
+	})
 }

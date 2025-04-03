@@ -91,14 +91,8 @@ If you discover a security vulnerability within Vibe, please send an email to sr
 ## Future Improvements
 
 - [ ] **Request validation**: Add built-in request validation with custom error messages
-- [ ] **Dependency injection**: Simple container for managing dependencies
-- [ ] **Template rendering**: Support for HTML templates
-- [ ] **File uploads**: Streamlined handling of multipart form data
 - [ ] **WebSocket support**: Real-time communication capabilities
-- [ ] **Database integration**: Helpers for common database operations
 - [ ] **Rate limiting middleware**: Protect APIs from abuse
 - [ ] **Authentication middleware**: Common auth patterns (JWT, OAuth)
 - [ ] **Swagger/OpenAPI integration**: Automatic API documentation
-- [ ] **Testing utilities**: Simplified API testing
 - [ ] **Hot reload**: Development mode with automatic reloading
-- [ ] **Command-line tools**: Scaffolding for new projects

@@ -124,7 +124,6 @@ func main() {
 	})
 
 	todoGroup.Get("/{id}", func(w http.ResponseWriter, r *http.Request) error {
-		// Extract ID from path
 		idStr := r.PathValue("id")
 		id, err := strconv.Atoi(idStr)
 		if err != nil {
