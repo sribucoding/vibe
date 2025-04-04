@@ -67,7 +67,7 @@ func WithoutRecovery() RouterOption {
 }
 
 // WithoutTimeout disables the default timeout middleware.
-// By default, the router includes a timeout middleware with 1-minute timeout.
+// By default, the router includes a timeout middleware with 60-second timeout.
 func WithoutTimeout() RouterOption {
 	return func(r *Router) {
 		r.disableTimeout = true
@@ -75,7 +75,7 @@ func WithoutTimeout() RouterOption {
 }
 
 // WithTimeout sets a custom timeout duration for the default timeout middleware.
-// By default, the router uses 1-minute timeout if timeout middleware is enabled.
+// By default, the router uses a 60-second timeout if timeout middleware is enabled.
 func WithTimeout(duration time.Duration) RouterOption {
 	return func(r *Router) {
 		r.timeout = duration
