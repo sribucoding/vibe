@@ -24,16 +24,16 @@
 //	import (
 //	    "net/http"
 //	    "github.com/vibe-go/vibe"
-//	    "github.com/vibe-go/vibe/respond"
+//	    "github.com/vibe-go/vibe/httpx"
 //	)
 //
 //	func main() {
 //	    router := vibe.New()
 //
 //	    router.Get("/hello", func(w http.ResponseWriter, r *http.Request) error {
-//	        return httpx.JSON(w, http.StatusOK, map[string]string{
+//	        return httpx.JSON(w, map[string]string{
 //	            "message": "Hello, World!",
-//	        })
+//	        }, http.StatusOK)
 //	    })
 //
 //	    http.ListenAndServe(":8080", router)
