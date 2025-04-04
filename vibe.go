@@ -67,7 +67,7 @@ func WithoutRecovery() RouterOption {
 }
 
 // WithoutTimeout disables the default timeout middleware.
-// By default, the router includes a timeout middleware with a 30-second timeout.
+// By default, the router includes a timeout middleware with 1-minute timeout.
 func WithoutTimeout() RouterOption {
 	return func(r *Router) {
 		r.disableTimeout = true
@@ -75,7 +75,7 @@ func WithoutTimeout() RouterOption {
 }
 
 // WithTimeout sets a custom timeout duration for the default timeout middleware.
-// By default, the router uses a 30-second timeout if timeout middleware is enabled.
+// By default, the router uses 1-minute timeout if timeout middleware is enabled.
 func WithTimeout(duration time.Duration) RouterOption {
 	return func(r *Router) {
 		r.timeout = duration
@@ -112,10 +112,12 @@ type Router struct {
 //	// Router without timeout middleware
 //	router := vibe.New(vibe.WithoutTimeout())
 func New(options ...RouterOption) *Router {
+	const timeout = 60 * time.Second
+
 	router := &Router{
 		mux:     http.NewServeMux(),
 		logger:  log.New(os.Stdout, "[vibe] ", log.LstdFlags),
-		timeout: 30 * time.Second, // Default timeout of 30 seconds
+		timeout: timeout,
 	}
 
 	for _, option := range options {

@@ -18,7 +18,7 @@ import (
 func TestWithTimeout(t *testing.T) {
 	// Test case: handler completes before timeout
 	t.Run("CompletesBeforeTimeout", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			time.Sleep(10 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(`{"message":"OK"}`))
@@ -40,7 +40,7 @@ func TestWithTimeout(t *testing.T) {
 
 	// Test case: handler times out
 	t.Run("TimesOut", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			time.Sleep(100 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 			return nil
@@ -62,7 +62,7 @@ func TestWithTimeout(t *testing.T) {
 	// Test case: handler returns an error
 	t.Run("HandlerReturnsError", func(t *testing.T) {
 		expectedErr := errors.New("handler error")
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) error {
 			return expectedErr
 		})
 
@@ -81,7 +81,7 @@ func TestWithTimeout(t *testing.T) {
 
 	// Test case: concurrent requests
 	t.Run("ConcurrentRequests", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			time.Sleep(10 * time.Millisecond)
 			w.WriteHeader(http.StatusOK)
 			return nil
@@ -90,7 +90,7 @@ func TestWithTimeout(t *testing.T) {
 		wrapped := middleware.WithTimeout(100 * time.Millisecond)(handler)
 
 		var wg sync.WaitGroup
-		for i := 0; i < 10; i++ {
+		for range 10 {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
@@ -110,7 +110,7 @@ func TestWithTimeout(t *testing.T) {
 func TestRecovery(t *testing.T) {
 	// Test case: no panic
 	t.Run("NoPanic", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			w.WriteHeader(http.StatusOK)
 			return nil
 		})
@@ -131,7 +131,7 @@ func TestRecovery(t *testing.T) {
 	// Test case: panic with error
 	t.Run("PanicWithError", func(t *testing.T) {
 		expectedErr := errors.New("test panic error")
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) error {
 			panic(expectedErr)
 		})
 
@@ -157,7 +157,7 @@ func TestRecovery(t *testing.T) {
 
 	// Test case: panic with non-error value
 	t.Run("PanicWithNonError", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) error {
 			panic("string panic")
 		})
 
@@ -185,7 +185,7 @@ func TestRecovery(t *testing.T) {
 func TestLogger(t *testing.T) {
 	// Test case: with default logger
 	t.Run("DefaultLogger", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			w.WriteHeader(http.StatusOK)
 			return nil
 		})
@@ -205,7 +205,7 @@ func TestLogger(t *testing.T) {
 
 	// Test case: with custom logger
 	t.Run("CustomLogger", func(t *testing.T) {
-		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) error {
 			w.WriteHeader(http.StatusOK)
 			return nil
 		})
@@ -305,8 +305,7 @@ func TestResponseCapturer(t *testing.T) {
 	})
 }
 
-// errorResponseWriter is a test helper that implements http.ResponseWriter
-// and returns an error on Write
+// and returns an error on Write.
 type errorResponseWriter struct {
 	err error
 }
@@ -319,6 +318,6 @@ func (e *errorResponseWriter) Write([]byte) (int, error) {
 	return 0, e.err
 }
 
-func (e *errorResponseWriter) WriteHeader(statusCode int) {
+func (e *errorResponseWriter) WriteHeader(_ int) {
 	// Do nothing
 }
