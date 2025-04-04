@@ -2,59 +2,62 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
-	"strconv"
 	"time"
 
-	"github.com/vibe-go/vibe/respond"
+	"github.com/vibe-go/vibe/httpx"
 )
 
-// DefaultMaxAge is the default max age for CORS preflight requests (24 hours).
-const DefaultMaxAge = 86400
-
-// HandlerFunc defines a function that processes an HTTP request and returns an error.
-// It's used throughout the framework for route handlers and middleware.
-type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
-
-// WithTimeout returns a middleware that times out the request after the given duration.
-func WithTimeout(timeout time.Duration) Middleware {
-	return func(next HandlerFunc) HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) error {
+func WithTimeout(timeout time.Duration) func(next http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
 			ctx, cancel := context.WithTimeout(r.Context(), timeout)
 			defer cancel()
 
 			r = r.WithContext(ctx)
 
-			done := make(chan error, 1)
+			done := make(chan struct{}, 1)
+			var err error
+
 			go func() {
-				done <- next(w, r)
+				defer func() {
+					done <- struct{}{}
+				}()
+
+				respCapturer := NewResponseCapturer(w)
+				next.ServeHTTP(respCapturer, r)
+
+				if respCapturer.Error() != nil {
+					err = respCapturer.Error()
+				}
 			}()
 
 			select {
-			case err := <-done:
-				return err
+			case <-done:
+				if err != nil {
+					return err
+				}
+				return nil
 			case <-ctx.Done():
-				return respond.Error(w, http.StatusGatewayTimeout, "Request timeout")
+				return httpx.Error(w, errors.New("request timed out"), http.StatusRequestTimeout)
 			}
-		}
+		})
 	}
 }
 
-// Middleware defines a function to wrap a HandlerFunc.
-type Middleware func(HandlerFunc) HandlerFunc
-
 // Recovery returns a middleware that recovers from panics and logs the error.
 // It takes a logger to record panic information.
-func Recovery(logger *log.Logger) Middleware {
+func Recovery(logger *log.Logger) func(next http.Handler) http.Handler {
 	// Use a default logger if none is provided
 	if logger == nil {
 		logger = log.New(log.Writer(), "[recovery] ", log.LstdFlags)
 	}
 
-	return func(next HandlerFunc) HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) error {
+	return func(next http.Handler) http.Handler {
+		return httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
 			defer func() {
 				if rec := recover(); rec != nil {
 					err, ok := rec.(error)
@@ -62,114 +65,71 @@ func Recovery(logger *log.Logger) Middleware {
 						err = fmt.Errorf("%v", rec)
 					}
 					logger.Printf("recovered from panic: %v", err)
-					http.Error(w, "Internal Server Error", http.StatusInternalServerError)
+					err = httpx.InternalError(w, err)
+					if err != nil {
+						logger.Printf("failed to write error response: %v", err)
+					}
 				}
 			}()
-			return next(w, r)
-		}
-	}
-}
-
-// corsConfig holds the configuration for CORS middleware.
-type corsConfig struct {
-	allowOrigin      string
-	allowMethods     string
-	allowHeaders     string
-	allowCredentials bool
-	maxAge           int
-}
-
-// CORSOption defines a function that configures CORS options.
-type CORSOption func(*corsConfig)
-
-// WithAllowOrigin sets the Access-Control-Allow-Origin header.
-func WithAllowOrigin(origin string) CORSOption {
-	return func(c *corsConfig) {
-		c.allowOrigin = origin
-	}
-}
-
-// WithAllowMethods sets the Access-Control-Allow-Methods header.
-func WithAllowMethods(methods string) CORSOption {
-	return func(c *corsConfig) {
-		c.allowMethods = methods
-	}
-}
-
-// WithAllowHeaders sets the Access-Control-Allow-Headers header.
-func WithAllowHeaders(headers string) CORSOption {
-	return func(c *corsConfig) {
-		c.allowHeaders = headers
-	}
-}
-
-// WithAllowCredentials sets the Access-Control-Allow-Credentials header.
-func WithAllowCredentials(allow bool) CORSOption {
-	return func(c *corsConfig) {
-		c.allowCredentials = allow
-	}
-}
-
-// WithMaxAge sets the Access-Control-Max-Age header.
-func WithMaxAge(seconds int) CORSOption {
-	return func(c *corsConfig) {
-		c.maxAge = seconds
-	}
-}
-
-// CORS returns a middleware that adds CORS headers with customizable options.
-// If no options are provided, sensible defaults are used.
-func CORS(options ...CORSOption) Middleware {
-	// Default configuration
-	cfg := &corsConfig{
-		allowOrigin:      "*",
-		allowMethods:     "GET, POST, PUT, DELETE, OPTIONS",
-		allowHeaders:     "Content-Type, Authorization",
-		allowCredentials: false,
-		maxAge:           DefaultMaxAge,
-	}
-
-	for _, option := range options {
-		option(cfg)
-	}
-
-	return func(next HandlerFunc) HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) error {
-			w.Header().Set("Access-Control-Allow-Origin", cfg.allowOrigin)
-			w.Header().Set("Access-Control-Allow-Methods", cfg.allowMethods)
-			w.Header().Set("Access-Control-Allow-Headers", cfg.allowHeaders)
-
-			if cfg.allowCredentials {
-				w.Header().Set("Access-Control-Allow-Credentials", "true")
-			}
-
-			if cfg.maxAge > 0 {
-				w.Header().Set("Access-Control-Max-Age", strconv.Itoa(cfg.maxAge))
-			}
-
-			if r.Method == http.MethodOptions {
-				w.WriteHeader(http.StatusOK)
-				return nil
-			}
-			return next(w, r)
-		}
+			next.ServeHTTP(w, r)
+			return nil
+		})
 	}
 }
 
 // Logger returns a middleware that logs each request with method, path, and duration.
-func Logger(logger *log.Logger) Middleware {
+func Logger(logger *log.Logger) func(next http.Handler) http.Handler {
 	if logger == nil {
 		logger = log.New(log.Writer(), "[http] ", log.LstdFlags)
 	}
 
-	return func(next HandlerFunc) HandlerFunc {
-		return func(w http.ResponseWriter, r *http.Request) error {
+	return func(next http.Handler) http.Handler {
+		return httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			start := time.Now()
 			logger.Printf("Request: %s %s", r.Method, r.URL.Path)
-			err := next(w, r)
-			if err != nil {
-				logger.Printf("Error: %v", err)
-			}
-			return err
-		}
+
+			next.ServeHTTP(w, r)
+
+			logger.Printf("Completed: %s %s in %v", r.Method, r.URL.Path, time.Since(start))
+			return nil
+		})
 	}
+}
+
+// ResponseCapturer is a wrapper for http.ResponseWriter that captures errors.
+type ResponseCapturer struct {
+	http.ResponseWriter
+	Err error
+}
+
+// NewResponseCapturer creates a new response capturer that wraps a ResponseWriter.
+func NewResponseCapturer(w http.ResponseWriter) *ResponseCapturer {
+	return &ResponseCapturer{ResponseWriter: w}
+}
+
+func (r *ResponseCapturer) setError(err error) {
+	r.Err = err
+}
+
+// Write overrides the underlying ResponseWriter's Write method to capture errors.
+func (r *ResponseCapturer) Write(b []byte) (int, error) {
+	n, err := r.ResponseWriter.Write(b)
+	if err != nil {
+		r.setError(err)
+	}
+	return n, err
+}
+
+// WriteHeader overrides the underlying ResponseWriter's WriteHeader method.
+func (r *ResponseCapturer) WriteHeader(statusCode int) {
+	// Optionally capture non-2xx status codes as errors
+	if statusCode >= http.StatusBadRequest {
+		r.setError(fmt.Errorf("response status code: %d", statusCode))
+	}
+	r.ResponseWriter.WriteHeader(statusCode)
+}
+
+// Error returns the captured error.
+func (r *ResponseCapturer) Error() error {
+	return r.Err
 }

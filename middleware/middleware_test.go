@@ -1,198 +1,324 @@
 package middleware_test
 
 import (
+	"bytes"
 	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/vibe-go/vibe/httpx"
 	"github.com/vibe-go/vibe/middleware"
-	"github.com/vibe-go/vibe/respond"
 )
 
-func TestRecoveryMiddleware(t *testing.T) {
-	handler := func(_ http.ResponseWriter, _ *http.Request) error {
-		panic("test panic")
-	}
+func TestWithTimeout(t *testing.T) {
+	// Test case: handler completes before timeout
+	t.Run("CompletesBeforeTimeout", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			time.Sleep(10 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+			w.Write([]byte(`{"message":"OK"}`))
+			return nil
+		})
 
-	wrapped := middleware.Recovery(nil)(handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-
-	_ = wrapped(w, req)
-
-	resp := w.Result()
-	if resp.StatusCode != http.StatusInternalServerError {
-		t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, resp.StatusCode)
-	}
-}
-
-func TestTimeoutMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, _ *http.Request) error {
-		time.Sleep(100 * time.Millisecond)
-		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
-	}
-
-	wrapped := middleware.WithTimeout(50 * time.Millisecond)(handler)
-
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
-
-	// Execute the handler
-	wrapped(w, req)
-
-	// Check the response status code instead of the error
-	resp := w.Result()
-	if resp.StatusCode != http.StatusGatewayTimeout {
-		t.Errorf("Expected status code %d for timeout, got %d",
-			http.StatusGatewayTimeout, resp.StatusCode)
-	}
-}
-
-func TestCORSMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, _ *http.Request) error {
-		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
-	}
-
-	t.Run("DefaultOptions", func(t *testing.T) {
-		wrapped := middleware.CORS()(handler)
+		wrapped := middleware.WithTimeout(100 * time.Millisecond)(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
-		_ = wrapped(w, req)
-
-		resp := w.Result()
-		if resp.Header.Get("Access-Control-Allow-Origin") != "*" {
-			t.Errorf("Expected Access-Control-Allow-Origin to be '*', got '%s'",
-				resp.Header.Get("Access-Control-Allow-Origin"))
-		}
-	})
-
-	// Test with custom options
-	t.Run("CustomOptions", func(t *testing.T) {
-		wrapped := middleware.CORS(
-			middleware.WithAllowOrigin("https://example.com"),
-			middleware.WithAllowCredentials(true),
-		)(handler)
-
-		req := httptest.NewRequest(http.MethodGet, "/", nil)
-		w := httptest.NewRecorder()
-
-		_ = wrapped(w, req)
-
-		resp := w.Result()
-		if resp.Header.Get("Access-Control-Allow-Origin") != "https://example.com" {
-			t.Errorf("Expected Access-Control-Allow-Origin to be 'https://example.com', got '%s'",
-				resp.Header.Get("Access-Control-Allow-Origin"))
-		}
-
-		if resp.Header.Get("Access-Control-Allow-Credentials") != "true" {
-			t.Errorf("Expected Access-Control-Allow-Credentials to be 'true', got '%s'",
-				resp.Header.Get("Access-Control-Allow-Credentials"))
-		}
-	})
-
-	// Test OPTIONS request
-	t.Run("OptionsRequest", func(t *testing.T) {
-		wrapped := middleware.CORS()(handler)
-
-		req := httptest.NewRequest(http.MethodOptions, "/", nil)
-		w := httptest.NewRecorder()
-
-		_ = wrapped(w, req)
+		wrapped.ServeHTTP(w, req)
 
 		resp := w.Result()
 		if resp.StatusCode != http.StatusOK {
-			t.Errorf("Expected status code %d for OPTIONS request, got %d",
-				http.StatusOK, resp.StatusCode)
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+		}
+	})
+
+	// Test case: handler times out
+	t.Run("TimesOut", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			time.Sleep(100 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+			return nil
+		})
+
+		wrapped := middleware.WithTimeout(50 * time.Millisecond)(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusRequestTimeout {
+			t.Errorf("Expected status code %d, got %d", http.StatusRequestTimeout, resp.StatusCode)
+		}
+	})
+
+	// Test case: handler returns an error
+	t.Run("HandlerReturnsError", func(t *testing.T) {
+		expectedErr := errors.New("handler error")
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			return expectedErr
+		})
+
+		wrapped := middleware.WithTimeout(100 * time.Millisecond)(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, resp.StatusCode)
+		}
+	})
+
+	// Test case: concurrent requests
+	t.Run("ConcurrentRequests", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			time.Sleep(10 * time.Millisecond)
+			w.WriteHeader(http.StatusOK)
+			return nil
+		})
+
+		wrapped := middleware.WithTimeout(100 * time.Millisecond)(handler)
+
+		var wg sync.WaitGroup
+		for i := 0; i < 10; i++ {
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				req := httptest.NewRequest(http.MethodGet, "/", nil)
+				w := httptest.NewRecorder()
+				wrapped.ServeHTTP(w, req)
+				resp := w.Result()
+				if resp.StatusCode != http.StatusOK {
+					t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+				}
+			}()
+		}
+		wg.Wait()
+	})
+}
+
+func TestRecovery(t *testing.T) {
+	// Test case: no panic
+	t.Run("NoPanic", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			w.WriteHeader(http.StatusOK)
+			return nil
+		})
+
+		wrapped := middleware.Recovery(nil)(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+		}
+	})
+
+	// Test case: panic with error
+	t.Run("PanicWithError", func(t *testing.T) {
+		expectedErr := errors.New("test panic error")
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			panic(expectedErr)
+		})
+
+		var buf bytes.Buffer
+		logger := log.New(&buf, "[test] ", 0)
+		wrapped := middleware.Recovery(logger)(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, resp.StatusCode)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "test panic error") {
+			t.Errorf("Expected log to contain panic error, got: %s", logOutput)
+		}
+	})
+
+	// Test case: panic with non-error value
+	t.Run("PanicWithNonError", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			panic("string panic")
+		})
+
+		var buf bytes.Buffer
+		logger := log.New(&buf, "[test] ", 0)
+		wrapped := middleware.Recovery(logger)(handler)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusInternalServerError {
+			t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, resp.StatusCode)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "string panic") {
+			t.Errorf("Expected log to contain panic message, got: %s", logOutput)
 		}
 	})
 }
 
-func TestLoggerMiddleware(t *testing.T) {
-	handler := func(w http.ResponseWriter, _ *http.Request) error {
-		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
-	}
+func TestLogger(t *testing.T) {
+	// Test case: with default logger
+	t.Run("DefaultLogger", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			w.WriteHeader(http.StatusOK)
+			return nil
+		})
 
-	// Test with nil logger (should use default)
-	wrapped := middleware.Logger(nil)(handler)
+		wrapped := middleware.Logger(nil)(handler)
 
-	req := httptest.NewRequest(http.MethodGet, "/test", nil)
-	w := httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/test-path", nil)
+		w := httptest.NewRecorder()
 
-	err := wrapped(w, req)
-	if err != nil {
-		t.Errorf("Logger middleware returned error: %v", err)
-	}
+		wrapped.ServeHTTP(w, req)
 
-	resp := w.Result()
-	if resp.StatusCode != http.StatusOK {
-		t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
-	}
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+		}
+	})
 
-	// Test with error from handler
-	errorHandler := func(_ http.ResponseWriter, _ *http.Request) error {
-		return errors.New("test error")
-	}
+	// Test case: with custom logger
+	t.Run("CustomLogger", func(t *testing.T) {
+		handler := httpx.HandlerFunc(func(w http.ResponseWriter, r *http.Request) error {
+			w.WriteHeader(http.StatusOK)
+			return nil
+		})
 
-	wrapped = middleware.Logger(nil)(errorHandler)
+		var buf bytes.Buffer
+		logger := log.New(&buf, "[custom] ", 0)
+		wrapped := middleware.Logger(logger)(handler)
 
-	req = httptest.NewRequest(http.MethodGet, "/test", nil)
-	w = httptest.NewRecorder()
+		req := httptest.NewRequest(http.MethodGet, "/custom-path", nil)
+		w := httptest.NewRecorder()
 
-	err = wrapped(w, req)
-	if err == nil || err.Error() != "test error" {
-		t.Errorf("Expected 'test error', got %v", err)
-	}
+		wrapped.ServeHTTP(w, req)
+
+		resp := w.Result()
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, resp.StatusCode)
+		}
+
+		logOutput := buf.String()
+		if !strings.Contains(logOutput, "Request: GET /custom-path") {
+			t.Errorf("Expected log to contain request info, got: %s", logOutput)
+		}
+		if !strings.Contains(logOutput, "Completed: GET /custom-path") {
+			t.Errorf("Expected log to contain completion info, got: %s", logOutput)
+		}
+	})
 }
 
-func TestCORSAllOptions(t *testing.T) {
-	handler := func(w http.ResponseWriter, _ *http.Request) error {
-		return respond.JSON(w, http.StatusOK, map[string]string{"message": "OK"})
-	}
+func TestResponseCapturer(t *testing.T) {
+	// Test Write method
+	t.Run("Write", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		capturer := middleware.NewResponseCapturer(w)
 
-	// Test all CORS options
-	wrapped := middleware.CORS(
-		middleware.WithAllowOrigin("https://example.com"),
-		middleware.WithAllowMethods("GET, POST"),
-		middleware.WithAllowHeaders("X-Custom-Header"),
-		middleware.WithAllowCredentials(true),
-		middleware.WithMaxAge(3600),
-	)(handler)
+		n, err := capturer.Write([]byte("test data"))
+		if err != nil {
+			t.Errorf("Write returned unexpected error: %v", err)
+		}
+		if n != 9 {
+			t.Errorf("Expected to write 9 bytes, got %d", n)
+		}
 
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	w := httptest.NewRecorder()
+		if w.Body.String() != "test data" {
+			t.Errorf("Expected body to be 'test data', got '%s'", w.Body.String())
+		}
+	})
 
-	_ = wrapped(w, req)
+	// Test WriteHeader with success status
+	t.Run("WriteHeaderSuccess", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		capturer := middleware.NewResponseCapturer(w)
 
-	resp := w.Result()
+		capturer.WriteHeader(http.StatusOK)
 
-	// Check all headers
-	if resp.Header.Get("Access-Control-Allow-Origin") != "https://example.com" {
-		t.Errorf("Expected Access-Control-Allow-Origin to be 'https://example.com', got '%s'",
-			resp.Header.Get("Access-Control-Allow-Origin"))
-	}
+		if w.Code != http.StatusOK {
+			t.Errorf("Expected status code %d, got %d", http.StatusOK, w.Code)
+		}
 
-	if resp.Header.Get("Access-Control-Allow-Methods") != "GET, POST" {
-		t.Errorf("Expected Access-Control-Allow-Methods to be 'GET, POST', got '%s'",
-			resp.Header.Get("Access-Control-Allow-Methods"))
-	}
+		if capturer.Error() != nil {
+			t.Errorf("Expected no error for success status, got: %v", capturer.Error())
+		}
+	})
 
-	if resp.Header.Get("Access-Control-Allow-Headers") != "X-Custom-Header" {
-		t.Errorf("Expected Access-Control-Allow-Headers to be 'X-Custom-Header', got '%s'",
-			resp.Header.Get("Access-Control-Allow-Headers"))
-	}
+	// Test WriteHeader with error status
+	t.Run("WriteHeaderError", func(t *testing.T) {
+		w := httptest.NewRecorder()
+		capturer := middleware.NewResponseCapturer(w)
 
-	if resp.Header.Get("Access-Control-Allow-Credentials") != "true" {
-		t.Errorf("Expected Access-Control-Allow-Credentials to be 'true', got '%s'",
-			resp.Header.Get("Access-Control-Allow-Credentials"))
-	}
+		capturer.WriteHeader(http.StatusInternalServerError)
 
-	if resp.Header.Get("Access-Control-Max-Age") != "3600" {
-		t.Errorf("Expected Access-Control-Max-Age to be '3600', got '%s'",
-			resp.Header.Get("Access-Control-Max-Age"))
-	}
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("Expected status code %d, got %d", http.StatusInternalServerError, w.Code)
+		}
+
+		if capturer.Error() == nil {
+			t.Error("Expected error for error status, got nil")
+		}
+	})
+
+	// Test error propagation
+	t.Run("ErrorPropagation", func(t *testing.T) {
+		// Create a custom ResponseWriter that returns an error on Write
+		errorWriter := &errorResponseWriter{
+			err: errors.New("write error"),
+		}
+
+		capturer := middleware.NewResponseCapturer(errorWriter)
+
+		_, err := capturer.Write([]byte("test"))
+		if err == nil || err.Error() != "write error" {
+			t.Errorf("Expected 'write error', got: %v", err)
+		}
+
+		if capturer.Error() == nil || capturer.Error().Error() != "write error" {
+			t.Errorf("Expected capturer to store 'write error', got: %v", capturer.Error())
+		}
+	})
+}
+
+// errorResponseWriter is a test helper that implements http.ResponseWriter
+// and returns an error on Write
+type errorResponseWriter struct {
+	err error
+}
+
+func (e *errorResponseWriter) Header() http.Header {
+	return http.Header{}
+}
+
+func (e *errorResponseWriter) Write([]byte) (int, error) {
+	return 0, e.err
+}
+
+func (e *errorResponseWriter) WriteHeader(statusCode int) {
+	// Do nothing
 }

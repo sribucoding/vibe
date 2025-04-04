@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,26 +11,25 @@ import (
 	"time"
 
 	"github.com/vibe-go/vibe"
-	"github.com/vibe-go/vibe/httpjson"
-	"github.com/vibe-go/vibe/middleware"
-	"github.com/vibe-go/vibe/respond"
+	"github.com/vibe-go/vibe/httpx"
+	"github.com/vibe-go/vibe/middleware/cors"
 )
 
-// Todo represents a todo item
+// Todo represents a todo item.
 type Todo struct {
 	ID        int    `json:"id"`
 	Title     string `json:"title"`
 	Completed bool   `json:"completed"`
 }
 
-// TodoStore is a simple in-memory store for todos
+// TodoStore is a simple in-memory store for todos.
 type TodoStore struct {
 	sync.RWMutex
 	todos  map[int]Todo
 	nextID int
 }
 
-// NewTodoStore creates a new todo store with some sample data
+// NewTodoStore creates a new todo store with some sample data.
 func NewTodoStore() *TodoStore {
 	store := &TodoStore{
 		todos:  make(map[int]Todo),
@@ -109,8 +109,7 @@ func main() {
 
 	// Set up middleware
 	logger := log.New(os.Stdout, "[todo-api] ", log.LstdFlags)
-	router.Use(middleware.Recovery(logger))
-	router.Use(middleware.CORS())
+	router.Use(cors.New())
 
 	// Create a todo store
 	store := NewTodoStore()
@@ -121,7 +120,7 @@ func main() {
 	// Define routes using the group
 	todoGroup.Get("", func(w http.ResponseWriter, _ *http.Request) error {
 		todos := store.GetAll()
-		return respond.JSON(w, http.StatusOK, todos)
+		return httpx.JSON(w, todos, http.StatusOK)
 	})
 
 	todoGroup.Get("/{id}", func(w http.ResponseWriter, r *http.Request) error {
@@ -133,21 +132,20 @@ func main() {
 
 		todo, ok := store.Get(id)
 		if !ok {
-			http.Error(w, "Todo not found", http.StatusNotFound)
-			return nil
+			return httpx.Error(w, errors.New("Todo not found"), http.StatusNotFound)
 		}
 
-		return respond.JSON(w, http.StatusOK, todo)
+		return httpx.JSON(w, todo, http.StatusOK)
 	})
 
 	todoGroup.Post("", func(w http.ResponseWriter, r *http.Request) error {
 		var todo Todo
-		if err := httpjson.Decode(r, &todo); err != nil {
+		if err := httpx.DecodeJSON(r, &todo); err != nil {
 			return err
 		}
 
 		created := store.Create(todo)
-		return respond.JSON(w, http.StatusCreated, created)
+		return httpx.JSON(w, created, http.StatusCreated)
 	})
 
 	todoGroup.Put("/{id}", func(w http.ResponseWriter, r *http.Request) error {
@@ -159,17 +157,16 @@ func main() {
 		}
 
 		var todo Todo
-		if decodeErr := httpjson.Decode(r, &todo); decodeErr != nil {
-			return err
+		if decodeErr := httpx.DecodeJSON(r, &todo); decodeErr != nil {
+			return decodeErr
 		}
 
 		updated, ok := store.Update(id, todo)
 		if !ok {
-			http.Error(w, "Todo not found", http.StatusNotFound)
-			return nil
+			return httpx.Error(w, errors.New("Todo not found"), http.StatusNotFound)
 		}
 
-		return respond.JSON(w, http.StatusOK, updated)
+		return httpx.JSON(w, updated, http.StatusOK)
 	})
 
 	todoGroup.Delete("/{id}", func(w http.ResponseWriter, r *http.Request) error {
@@ -182,13 +179,18 @@ func main() {
 
 		ok := store.Delete(id)
 		if !ok {
-			http.Error(w, "Todo not found", http.StatusNotFound)
-			return nil
+			return httpx.Error(w, errors.New("Todo not found"), http.StatusNotFound)
 		}
 
-		respond.WithStatusCode(w, http.StatusNoContent)
+		httpx.WithStatusCode(w, http.StatusNoContent)
 		return nil
 	})
+
+	const (
+		readTimeoutSeconds  = 15
+		writeTimeoutSeconds = 15
+		idleTimeoutSeconds  = 60
+	)
 
 	// Start the server
 	port := "8080"
@@ -196,9 +198,9 @@ func main() {
 	server := &http.Server{
 		Addr:         ":" + port,
 		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 15 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		ReadTimeout:  time.Duration(readTimeoutSeconds) * time.Second,
+		WriteTimeout: time.Duration(writeTimeoutSeconds) * time.Second,
+		IdleTimeout:  time.Duration(idleTimeoutSeconds) * time.Second,
 	}
 	if err := server.ListenAndServe(); err != nil {
 		logger.Fatalf("Server failed to start: %v", err)

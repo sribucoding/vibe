@@ -1,21 +1,28 @@
-package respond_test
+package httpx_test
 
 import (
+	"bytes"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/vibe-go/vibe/respond"
+	"github.com/vibe-go/vibe/httpx"
 )
+
+type testStruct struct {
+	Name  string `json:"name"`
+	Value int    `json:"value"`
+}
 
 func TestJSON(t *testing.T) {
 	w := httptest.NewRecorder()
 	data := map[string]string{"message": "test"}
 
-	err := respond.JSON(w, http.StatusCreated, data)
+	err := httpx.JSON(w, data, http.StatusCreated)
 	if err != nil {
 		t.Errorf("JSON() returned error: %v", err)
 	}
@@ -48,8 +55,9 @@ func TestJSON(t *testing.T) {
 
 func TestError(t *testing.T) {
 	w := httptest.NewRecorder()
+	testErr := errors.New("Invalid request")
 
-	err := respond.Error(w, http.StatusBadRequest, "Invalid request")
+	err := httpx.Error(w, testErr, http.StatusBadRequest)
 	if err != nil {
 		t.Errorf("Error() returned error: %v", err)
 	}
@@ -71,8 +79,9 @@ func TestError(t *testing.T) {
 
 func TestNotFound(t *testing.T) {
 	w := httptest.NewRecorder()
+	testErr := errors.New("Resource not found")
 
-	err := respond.NotFound(w, "Resource not found")
+	err := httpx.NotFound(w, testErr)
 	if err != nil {
 		t.Errorf("NotFound() returned error: %v", err)
 	}
@@ -87,8 +96,9 @@ func TestNotFound(t *testing.T) {
 
 func TestBadRequest(t *testing.T) {
 	w := httptest.NewRecorder()
+	testErr := errors.New("Invalid input")
 
-	err := respond.BadRequest(w, "Invalid input")
+	err := httpx.BadRequest(w, testErr)
 	if err != nil {
 		t.Errorf("BadRequest() returned error: %v", err)
 	}
@@ -105,7 +115,7 @@ func TestInternalError(t *testing.T) {
 	w := httptest.NewRecorder()
 	testErr := io.EOF
 
-	err := respond.InternalError(w, testErr)
+	err := httpx.InternalError(w, testErr)
 	if err != nil {
 		t.Errorf("InternalError() returned error: %v", err)
 	}
@@ -118,12 +128,10 @@ func TestInternalError(t *testing.T) {
 	}
 }
 
-// Add these test functions to your existing respond_test.go file
-
 func TestNotFoundEmptyMessage(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	err := respond.NotFound(w, "")
+	err := httpx.NotFound(w, nil)
 	if err != nil {
 		t.Errorf("NotFound() returned error: %v", err)
 	}
@@ -137,7 +145,7 @@ func TestNotFoundEmptyMessage(t *testing.T) {
 	}
 
 	// Check that default message is used
-	expected := `{"error":"Resource not found"}`
+	expected := `{"error":"resource not found"}`
 	if strings.TrimSpace(string(body)) != expected {
 		t.Errorf("Expected body %s, got %s", expected, string(body))
 	}
@@ -146,10 +154,65 @@ func TestNotFoundEmptyMessage(t *testing.T) {
 func TestWithStatusCode(t *testing.T) {
 	w := httptest.NewRecorder()
 
-	respond.WithStatusCode(w, http.StatusTeapot)
+	httpx.WithStatusCode(w, http.StatusTeapot)
 
 	resp := w.Result()
 	if resp.StatusCode != http.StatusTeapot {
 		t.Errorf("Expected status code %d, got %d", http.StatusTeapot, resp.StatusCode)
 	}
+}
+
+func TestDecode(t *testing.T) {
+	t.Run("ValidJSON", func(t *testing.T) {
+		jsonBody := `{"name":"test","value":123}`
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		var result testStruct
+		err := httpx.DecodeJSON(req, &result)
+
+		if err != nil {
+			t.Errorf("JSONDecode() returned error for valid JSON: %v", err)
+		}
+
+		if result.Name != "test" || result.Value != 123 {
+			t.Errorf("JSONDecode() didn't parse correctly, got %+v", result)
+		}
+	})
+
+	t.Run("InvalidJSON", func(t *testing.T) {
+		jsonBody := `{"name":"test",value:123}` // Missing quotes around value
+		req := httptest.NewRequest(http.MethodPost, "/", bytes.NewBufferString(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+
+		var result testStruct
+		err := httpx.DecodeJSON(req, &result)
+
+		if err == nil {
+			t.Error("JSONDecode() didn't return error for invalid JSON")
+		}
+	})
+
+	t.Run("EmptyBody", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/", strings.NewReader(""))
+		req.Header.Set("Content-Type", "application/json")
+
+		var result testStruct
+		err := httpx.DecodeJSON(req, &result)
+
+		if err == nil {
+			t.Error("JSONDecode() didn't return error for empty body")
+		}
+	})
+
+	t.Run("DecodeNilBody", func(t *testing.T) {
+		// Test with nil body
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		req.Header.Set("Content-Type", "application/json")
+		var result testStruct
+		err := httpx.DecodeJSON(req, &result)
+		if err == nil {
+			t.Error("JSONDecode() didn't return error for nil body")
+		}
+	})
 }

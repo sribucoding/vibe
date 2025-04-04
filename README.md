@@ -48,13 +48,13 @@ func main() {
 
     // Add routes to the group
     api.Get("/users", func(w http.ResponseWriter, r *http.Request) error {
-        return respond.JSON(w, http.StatusOK, map[string]string{"message": "List of users"})
+        return httpx.JSON(w, http.StatusOK, map[string]string{"message": "List of users"})
     })
 
     // Nested groups for more organization
     admin := api.Group("/admin")
     admin.Get("/stats", func(w http.ResponseWriter, r *http.Request) error {
-        return respond.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
+        return httpx.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
     })
 
     http.ListenAndServe(":8080", router)

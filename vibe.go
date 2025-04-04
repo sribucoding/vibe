@@ -31,7 +31,7 @@
 //	    router := vibe.New()
 //
 //	    router.Get("/hello", func(w http.ResponseWriter, r *http.Request) error {
-//	        return respond.JSON(w, http.StatusOK, map[string]string{
+//	        return httpx.JSON(w, http.StatusOK, map[string]string{
 //	            "message": "Hello, World!",
 //	        })
 //	    })
@@ -45,18 +45,14 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"time"
 
+	"github.com/vibe-go/vibe/httpx"
 	"github.com/vibe-go/vibe/middleware"
 )
 
-// HandlerFunc defines the signature for route handlers.
-// It returns an error if processing fails, which will be handled by the router.
-type HandlerFunc func(w http.ResponseWriter, r *http.Request) error
-
-// Middleware defines a function to wrap a HandlerFunc.
-// Middleware can perform pre-processing before calling the next handler,
-// and post-processing after the next handler returns.
-type Middleware func(HandlerFunc) HandlerFunc
+// MiddlewareFunc follows the standard http middleware pattern in Go.
+type MiddlewareFunc func(http.Handler) http.Handler
 
 // RouterOption defines a function to configure Router options.
 // It follows the functional options pattern for flexible configuration.
@@ -70,30 +66,56 @@ func WithoutRecovery() RouterOption {
 	}
 }
 
+// WithoutTimeout disables the default timeout middleware.
+// By default, the router includes a timeout middleware with a 30-second timeout.
+func WithoutTimeout() RouterOption {
+	return func(r *Router) {
+		r.disableTimeout = true
+	}
+}
+
+// WithTimeout sets a custom timeout duration for the default timeout middleware.
+// By default, the router uses a 30-second timeout if timeout middleware is enabled.
+func WithTimeout(duration time.Duration) RouterOption {
+	return func(r *Router) {
+		r.timeout = duration
+	}
+}
+
 // Router wraps the standard library ServeMux and adds middleware and method-specific route registration.
 // It provides a more expressive API for defining routes and applying middleware.
 type Router struct {
 	mux             *http.ServeMux
-	middlewares     []middleware.Middleware // Global middlewares
+	middlewares     []MiddlewareFunc
 	logger          *log.Logger
 	disableRecovery bool
+	disableTimeout  bool
+	timeout         time.Duration
 }
 
 // New creates a new Router instance with default configuration.
-// By default, it includes a recovery middleware to handle panics.
+// By default, it includes a recovery middleware to handle panics and
+// a timeout middleware with a 30-second timeout.
 // Options can be provided to customize the router's behavior.
 //
 // Example:
 //
-//	// Default router with recovery middleware
+//	// Default router with recovery and timeout middleware
 //	router := vibe.New()
 //
 //	// Router without recovery middleware
 //	router := vibe.New(vibe.WithoutRecovery())
+//
+//	// Router with custom timeout
+//	router := vibe.New(vibe.WithTimeout(10 * time.Second))
+//
+//	// Router without timeout middleware
+//	router := vibe.New(vibe.WithoutTimeout())
 func New(options ...RouterOption) *Router {
 	router := &Router{
-		mux:    http.NewServeMux(),
-		logger: log.New(os.Stdout, "[vibe] ", log.LstdFlags),
+		mux:     http.NewServeMux(),
+		logger:  log.New(os.Stdout, "[vibe] ", log.LstdFlags),
+		timeout: 30 * time.Second, // Default timeout of 30 seconds
 	}
 
 	for _, option := range options {
@@ -104,19 +126,23 @@ func New(options ...RouterOption) *Router {
 		router.Use(middleware.Recovery(router.logger))
 	}
 
+	if !router.disableTimeout {
+		router.Use(middleware.WithTimeout(router.timeout))
+	}
+
 	return router
 }
 
 // Use adds a global middleware to the router.
 // Global middlewares are applied to all routes.
-func (r *Router) Use(mw middleware.Middleware) {
+func (r *Router) Use(mw MiddlewareFunc) {
 	r.middlewares = append(r.middlewares, mw)
 }
 
 // chainMiddleware chains a list of middlewares with the base handler.
 // Middlewares are applied in reverse order so that the first middleware
 // in the list is the outermost wrapper.
-func chainMiddleware(h middleware.HandlerFunc, mws ...middleware.Middleware) middleware.HandlerFunc {
+func chainMiddleware(h http.Handler, mws ...MiddlewareFunc) http.Handler {
 	for i := len(mws) - 1; i >= 0; i-- {
 		h = mws[i](h)
 	}
@@ -124,26 +150,11 @@ func chainMiddleware(h middleware.HandlerFunc, mws ...middleware.Middleware) mid
 }
 
 // registerRoute is a helper that registers a route with the given HTTP method and pattern.
-func (r *Router) registerRoute(method, pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) registerRoute(method, pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	// Chain the handler with middlewares
 	chainedHandler := chainMiddleware(handler, append(r.middlewares, mws...)...)
 
-	r.mux.HandleFunc(method+" "+pattern, func(w http.ResponseWriter, req *http.Request) {
-		if req.Method != method {
-			if method != http.MethodGet && req.Method == http.MethodOptions {
-				// Handle OPTIONS requests for non-GET endpoints
-				w.WriteHeader(http.StatusOK)
-				return
-			}
-			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		if err := chainedHandler(w, req); err != nil {
-			r.logger.Printf("Error handling %s %s: %v", req.Method, req.URL.Path, err)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-		}
-	})
+	r.mux.Handle(method+" "+pattern, chainedHandler)
 }
 
 // ServeHTTP implements the http.Handler interface.
@@ -161,19 +172,19 @@ func (r *Router) JSON(w http.ResponseWriter, data interface{}) error {
 
 // Get registers a GET route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Get(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Get(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodGet, pattern, handler, mws...)
 }
 
 // Post registers a POST route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Post(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Post(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodPost, pattern, handler, mws...)
 }
 
 // Put registers a PUT route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Put(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Put(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodPut, pattern, handler, mws...)
 }
 
@@ -182,7 +193,7 @@ func (r *Router) Put(pattern string, handler middleware.HandlerFunc, mws ...midd
 type Group struct {
 	router     *Router
 	prefix     string
-	middleware []middleware.Middleware
+	middleware []MiddlewareFunc
 }
 
 // Group creates a new route group with the given prefix.
@@ -193,7 +204,7 @@ type Group struct {
 //
 //	api := router.Group("/api/v1")
 //	api.Get("/users", listUsers)
-func (r *Router) Group(prefix string, mws ...middleware.Middleware) *Group {
+func (r *Router) Group(prefix string, mws ...MiddlewareFunc) *Group {
 	return &Group{
 		router:     r,
 		prefix:     prefix,
@@ -204,56 +215,56 @@ func (r *Router) Group(prefix string, mws ...middleware.Middleware) *Group {
 // Use adds middleware to the group.
 // The middleware will be applied to all routes in the group.
 // Returns the group for method chaining.
-func (g *Group) Use(mw middleware.Middleware) *Group {
+func (g *Group) Use(mw MiddlewareFunc) *Group {
 	g.middleware = append(g.middleware, mw)
 	return g
 }
 
 // Get registers a GET route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Get(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Get(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Get(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Post registers a POST route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Post(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Post(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Post(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Put registers a PUT route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Put(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Put(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Put(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Delete registers a DELETE route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Delete(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Delete(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Delete(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Patch registers a PATCH route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Patch(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Patch(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Patch(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Options registers an OPTIONS route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Options(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Options(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Options(fullPath, handler, append(g.middleware, mws...)...)
 }
 
 // Head registers a HEAD route in the group.
 // The pattern is relative to the group's prefix.
-func (g *Group) Head(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (g *Group) Head(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	fullPath := g.prefix + pattern
 	g.router.Head(fullPath, handler, append(g.middleware, mws...)...)
 }
@@ -267,7 +278,7 @@ func (g *Group) Head(pattern string, handler middleware.HandlerFunc, mws ...midd
 //	api := router.Group("/api/v1")
 //	admin := api.Group("/admin")
 //	admin.Get("/stats", getStats)  // Route: /api/v1/admin/stats
-func (g *Group) Group(prefix string, mws ...middleware.Middleware) *Group {
+func (g *Group) Group(prefix string, mws ...MiddlewareFunc) *Group {
 	fullPrefix := g.prefix + prefix
 	return &Group{
 		router:     g.router,
@@ -278,25 +289,25 @@ func (g *Group) Group(prefix string, mws ...middleware.Middleware) *Group {
 
 // Delete registers a DELETE route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Delete(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Delete(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodDelete, pattern, handler, mws...)
 }
 
 // Patch registers a PATCH route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Patch(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Patch(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodPatch, pattern, handler, mws...)
 }
 
 // Options registers an OPTIONS route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Options(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Options(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodOptions, pattern, handler, mws...)
 }
 
 // Head registers a HEAD route.
 // The pattern supports path parameters in the format "/{param}".
-func (r *Router) Head(pattern string, handler middleware.HandlerFunc, mws ...middleware.Middleware) {
+func (r *Router) Head(pattern string, handler httpx.HandlerFunc, mws ...MiddlewareFunc) {
 	r.registerRoute(http.MethodHead, pattern, handler, mws...)
 }
 
@@ -306,23 +317,21 @@ func (r *Router) Head(pattern string, handler middleware.HandlerFunc, mws ...mid
 // Example:
 //
 //	router.NotFound(func(w http.ResponseWriter, r *http.Request) error {
-//	    return respond.JSON(w, http.StatusNotFound, map[string]string{
+//	    return httpx.JSON(w, map[string]string{
 //	        "error": "Resource not found",
 //	        "path": r.URL.Path,
-//	    })
+//	    }, http.StatusNotFound)
 //	})
-func (r *Router) NotFound(handler middleware.HandlerFunc) {
+func (r *Router) NotFound(handler httpx.HandlerFunc) {
 	// Chain the handler with global middlewares
 	chainedHandler := chainMiddleware(handler, r.middlewares...)
 
 	// Override the default NotFound handler
 	r.mux.HandleFunc("/", func(w http.ResponseWriter, req *http.Request) {
-		// Only handle actual 404s, not other routes
+		// Only handle paths that aren't the root path itself
+		// This prevents the NotFound handler from handling the root path
 		if req.URL.Path != "/" {
-			if err := chainedHandler(w, req); err != nil {
-				r.logger.Printf("Error handling NotFound for %s: %v", req.URL.Path, err)
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-			}
+			chainedHandler.ServeHTTP(w, req)
 		}
 	})
 }
