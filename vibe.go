@@ -95,7 +95,7 @@ type Router struct {
 
 // New creates a new Router instance with default configuration.
 // By default, it includes a recovery middleware to handle panics and
-// a timeout middleware with a 30-second timeout.
+// a timeout middleware with a 60-second timeout.
 // Options can be provided to customize the router's behavior.
 //
 // Example:
